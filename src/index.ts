@@ -34,6 +34,7 @@ import chalk from 'chalk';
         console.log('-'.repeat(60));
         console.log(item.title, item.percent);
 
+
         // 考试需要特殊处理
         const courses = (await Search.getUncompletedCourses(page, item)).filter(
             (course) => course.progress != 'full' || course.type == 'exam'
@@ -47,7 +48,7 @@ import chalk from 'chalk';
                         course.syllabusName ?? course.moduleName,
                         course.activityName,
                         course.progress,
-                        i,
+                        i + 1,
                         courses.length
                     )
                 )
@@ -71,55 +72,54 @@ import chalk from 'chalk';
             if (course.syllabusId) {
                 tLoc = tLoc.locator(`#${course.syllabusId}`);
             }
-
+            // 采用ID定位
             const t = (await tLoc
+                .locator(`#learning-activity-${course.activityId}`)
                 .getByText(course.activityName, {exact: true})
-                .elementHandles())!;
+                .elementHandle())!;
 
-            for (const es of t) {
-                if ((await es.getAttribute('class'))!.lastIndexOf('locked') != -1) {
-                    // 延迟1.5秒
-                    await Sleep(1500)
-                    console.log('课程锁定', '跳过');
-                    continue;
-                }
-
-                if (await es.$('xpath=../*[contains(@class, "upcoming")]')) {
-                    // 延迟1.5秒
-                    await Sleep(1500)
-                    console.log('课程未开始', '跳过');
-                    continue;
-                }
-
-                await es.click();
-
-                await page.waitForURL(RegExp(`^${Config.urls.course()}.*`), {
-                    timeout: 30000,
-                    waitUntil: 'domcontentloaded'
-                });
-
-                for (let count = 5; count > -1; count--) {
-                    await waitForSPALoaded(page);
-                    try {
-                        await processor?.exec(page);
-                        break;
-                    } catch (e) {
-                        console.error(e);
-                        console.log('process course failed: retry', count);
-                        await page.reload({timeout: 1000 * 60});
-                    }
-                }
-
-                // 回到课程选择页
-                await page.goBack({
-                    timeout: 0,
-                    waitUntil: 'domcontentloaded'
-                });
-                await page.reload({
-                    timeout: 10000,
-                    waitUntil: 'domcontentloaded'
-                });
+            if ((await t.getAttribute('class'))!.lastIndexOf('locked') != -1) {
+                // 延迟1.5秒
+                await Sleep(1500)
+                console.log('课程锁定', '跳过');
+                continue;
             }
+
+            if (await t.$('xpath=../*[contains(@class, "upcoming")]')) {
+                // 延迟1.5秒
+                await Sleep(1500)
+                console.log('课程未开始', '跳过');
+                continue;
+            }
+
+            await t.click();
+
+            await page.waitForURL(RegExp(`^${Config.urls.course()}.*`), {
+                timeout: 30000,
+                waitUntil: 'domcontentloaded'
+            });
+
+            for (let count = 5; count > -1; count--) {
+                await waitForSPALoaded(page);
+                try {
+                    await processor?.exec(page);
+                    break;
+                } catch (e) {
+                    console.error(e);
+                    console.log('process course failed: retry', count);
+                    await page.reload({timeout: 1000 * 60});
+                }
+            }
+
+            // 回到课程选择页
+            await page.goBack({
+                timeout: 0,
+                waitUntil: 'domcontentloaded'
+            });
+            await page.reload({
+                timeout: 10000,
+                waitUntil: 'domcontentloaded'
+            });
             // console.debug("go back to course page");
         }
         await page.goBack({
